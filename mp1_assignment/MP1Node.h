@@ -80,7 +80,10 @@ public:
     void sprintAddress(char const * format, char* buffer, Address *addr);
     bool isDeleted(int id);
     void removeFromDeleted(int id);
+    void logMemberList(vector<MemberListEntry>* list, Address* addr);
 	virtual ~MP1Node();
+
+    void mergeTable(vector<MemberListEntry> *pVector);
 };
 
 #endif /* _MP1NODE_H_ */
