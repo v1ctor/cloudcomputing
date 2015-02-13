@@ -71,7 +71,7 @@ void MP1Node::nodeStart(char *servaddrstr, short servport) {
 
     // Self booting routines
     if( initThisNode(&joinaddr) == -1 ) {
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG22
         log->LOG(&memberNode->addr, "init_thisnode failed. Exit.");
 #endif
         exit(1);
@@ -79,7 +79,7 @@ void MP1Node::nodeStart(char *servaddrstr, short servport) {
 
     if( !introduceSelfToGroup(&joinaddr) ) {
         finishUpThisNode();
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG22
         log->LOG(&memberNode->addr, "Unable to join self to group. Exiting.");
 #endif
         exit(1);
@@ -117,13 +117,13 @@ int MP1Node::initThisNode(Address *joinaddr) {
  */
 int MP1Node::introduceSelfToGroup(Address *joinaddr) {
 	MessageHdr *msg;
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG22
     static char s[1024];
 #endif
 
     if ( 0 == strcmp((char *)&(memberNode->addr.addr), (char *)&(joinaddr->addr))) {
         // I am the group booter (first process to join the group). Boot up the group
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG22
         log->LOG(&memberNode->addr, "Starting up group...");
 #endif
         memberNode->inGroup = true;
@@ -137,7 +137,7 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
         memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
         memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
 
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG2
         sprintf(s, "Trying to join...");
         log->LOG(&memberNode->addr, s);
 #endif
@@ -237,7 +237,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 
     switch (msg.msgType) {
         case JOINREQ: {
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG2
             log->LOG(&memberNode->addr, "Received joinreq");
             char buffer[1024];
             log->LOG(&memberNode->addr, "Received joinreq id %d port %d", id, port);
@@ -257,7 +257,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             emulNet->ENsend(&memberNode->addr, &address, answer, msgsize);
             return true;
         } case JOINREP: {
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG2
             log->LOG(&memberNode->addr, "Received joinrep");
             char buffer[1024];
             log->LOG(&memberNode->addr, "Received joinrep id %d port %d", id, port);
@@ -270,7 +270,9 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             return true;
         } case HEARTBEAT: {
             if (!memberNode->inGroup) {
+#ifdef DEBUGLOG2
                 log->LOG(&memberNode->addr, "Received heartbeat before joinrep");
+#endif
                 return false;
             }
             size_t entry_size = sizeof(int) + sizeof(short) + sizeof(long);
@@ -294,7 +296,9 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
             mergeTable(&table);
             return true;
         } default:
+#ifdef DEBUGLOG2
             log->LOG(&memberNode->addr, "Unknown message type");
+#endif
             return false;
     }
 }
@@ -311,28 +315,33 @@ void MP1Node::nodeLoopOps() {
 	/*
 	 * Your code goes here
 	 */
+#ifdef DEBUGLOG2
+    log->LOG(&memberNode->addr, "Cleanups");
+    logMemberList(&memberNode->memberList, &memberNode->addr);
+#endif
 
     //Check nodes status
-    vector<MemberListEntry>::iterator it = memberNode->memberList.begin();
-    while (it != memberNode->memberList.end()) {
-        vector<MemberListEntry>::iterator cur = it;
-        it++;
+    for (int i =0; i < memberNode->memberList.size();) {
+        MemberListEntry entry = memberNode->memberList[i];
         Address removed;
-        memcpy(removed.addr, &cur->id, sizeof(int));
-        memcpy(removed.addr + 4, &cur->port, sizeof(short));
+        memcpy(removed.addr, &entry.id, sizeof(int));
+        memcpy(removed.addr + 4, &entry.port, sizeof(short));
 
-        if (par->getcurrtime() - cur->timestamp > 10 && isDeleted(cur->id)) {
-            log->logNodeRemove(&memberNode->addr, &removed);
-            memberNode->memberList.erase(cur);
-#ifdef DEBUGLOG
-            log->LOG(&memberNode->addr, "Remove node %d port %d", cur->id, cur->port);
+        if (par->getcurrtime() - entry.timestamp > 10 && isDeleted(entry.id)) {
+#ifdef DEBUGLOG2
+            log->LOG(&memberNode->addr, "Remove node %d port %d", entry.id, entry.port);
 #endif
-        } else if (par->getcurrtime() - cur->timestamp > 5 && !isDeleted(cur->id)) {
-            deleted.push_back(cur->id);
-#ifdef DEBUGLOG
-            log->LOG(&memberNode->addr, "Mark as deleted node %d port %d", cur->id, cur->port);
+            log->logNodeRemove(&memberNode->addr, &removed);
+
+            memberNode->memberList.erase(memberNode->memberList.begin() + i);
+            continue;
+        } else if (par->getcurrtime() - entry.timestamp > 5 && !isDeleted(entry.id)) {
+            deleted.push_back(entry.id);
+#ifdef DEBUGLOG2
+            log->LOG(&memberNode->addr, "Mark as deleted node %d port %d", entry.id, entry.port);
 #endif
         }
+        i++;
     }
 
     memberNode->heartbeat++;
@@ -340,8 +349,10 @@ void MP1Node::nodeLoopOps() {
     size_t entry_size = sizeof(int) + sizeof(short) + sizeof(long);
     size_t message_size = entry_size * (memberNode->memberList.size() + 1) + sizeof(MessageHdr)
             + sizeof(memberNode->addr) + sizeof(long);
+#ifdef DEBUGLOG2
     log->LOG(&memberNode->addr, "DeletedSize %d", deleted.size());
     log->LOG(&memberNode->addr, "MessageSize %d", message_size);
+#endif
     char *message = (char *) malloc(message_size);
     MessageHdr messageHdr;
     messageHdr.msgType = HEARTBEAT;
@@ -375,7 +386,7 @@ void MP1Node::nodeLoopOps() {
         memcpy(&address.addr[4], &memberNode->memberList[i].port, sizeof(short));
         emulNet->ENsend(&memberNode->addr, &address, message, message_size);
 
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG2
         char buffer[1024];
         log->LOG(&memberNode->addr, "Send id %d port %d", memberNode->memberList[i].id, memberNode->memberList[i].port);
         sprintAddress("Send table %d.%d.%d.%d:%d", buffer, &address);
@@ -409,6 +420,7 @@ void MP1Node::removeFromDeleted(int id) {
 }
 
 void MP1Node::logMemberList(vector<MemberListEntry>* list, Address* addr) {
+#ifdef DEBUGLOG2
     log->LOG(&memberNode->addr, "Table %d.%d.%d.%d:%d",  addr->addr[0],addr->addr[1],addr->addr[2],
             addr->addr[3], *(short*)&addr->addr[4]);
     vector<MemberListEntry>::iterator it = list->begin();
@@ -417,7 +429,7 @@ void MP1Node::logMemberList(vector<MemberListEntry>* list, Address* addr) {
         log->LOG(&memberNode->addr, "|%d\t|%d\t|%d\t\t|%d\t\t|", it->id, it->port, it->timestamp, it->heartbeat);
         it++;
     }
-
+#endif
 }
 
 /**
@@ -474,9 +486,9 @@ void MP1Node::mergeTable(vector<MemberListEntry> *table) {
             continue;
         }
 
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG2
         char buffer[1024];
-        sprintAddress("Received table %d.%d.%d.%d:%d\n", buffer, &addr);
+        sprintAddress("Received table %d.%d.%d.%d:%d", buffer, &addr);
         log->LOG(&memberNode->addr, buffer);
         log->LOG(&memberNode->addr, "Received heartbeat id %d port %d", nit->id, nit->port);
 #endif
@@ -490,13 +502,13 @@ void MP1Node::mergeTable(vector<MemberListEntry> *table) {
         }
 
         if (it == memberNode->memberList.end() && !isDeleted(nit->id)) {
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG2
             log->LOG(&memberNode->addr, "New node received");
 #endif
             memberNode->memberList.push_back(MemberListEntry(nit->id, nit->port, nit->heartbeat, par->getcurrtime()));
             log->logNodeAdd(&memberNode->addr, &addr);
         } else if (it->heartbeat < nit->heartbeat) {
-#ifdef DEBUGLOG
+#ifdef DEBUGLOG2
             log->LOG(&memberNode->addr, "Update timestamp");
 #endif
             removeFromDeleted(it->id);
