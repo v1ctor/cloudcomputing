@@ -1,0 +1,5 @@
+.idea
+*.sh-e
+*.o
+*.log
+Application
