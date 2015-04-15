@@ -147,11 +147,11 @@ def source(partIdx):
 
 # Make sure you change this string to the last segment of your class URL.
 # For example, if your URL is https://class.coursera.org/pgm-2012-001-staging, set it to "pgm-2012-001-staging".
-URL = 'cloudcomputing-001'
+URL = 'cloudcomputing2-001'
 URL_BASE = "https://class.coursera.org/"
 
 # the "Identifier" you used when creating the part
-partIds = ['mp2_create', 'mp2_read', 'mp2_update', 'mp2_delete']
+partIds = ['mp2_create', 'mp2_delete', 'mp2_read', 'mp2_update']
 # used to generate readable run-time information for students
 partFriendlyNames = ['Create Test', 'Delete Test', 'Read Test', 'Update Test'] 
 # source files to collect (just for our records)
