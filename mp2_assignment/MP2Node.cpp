@@ -51,7 +51,7 @@ void MP2Node::updateRing() {
 	 */
 	// Sort the list based on the hashCode
 	sort(curMemList.begin(), curMemList.end());
-
+	ring = curMemList;
 
 	/*
 	 * Step 3: Run the stabilization protocol IF REQUIRED
@@ -108,9 +108,15 @@ size_t MP2Node::hashFunction(string key) {
  * 				3) Sends a message to the replica
  */
 void MP2Node::clientCreate(string key, string value) {
-	/*
-	 * Implement this
-	 */
+	vector<Node> nodes = findNodes(key);
+
+	//transID::fromAddr::CREATE::key::value::ReplicaType
+
+	for (int i = 0; i < 3; i++) {
+		Message message = Message(0, this->memberNode->addr, CREATE, key, value, static_cast<ReplicaType>(i));
+		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
+	}
+
 }
 
 /**
@@ -123,9 +129,13 @@ void MP2Node::clientCreate(string key, string value) {
  * 				3) Sends a message to the replica
  */
 void MP2Node::clientRead(string key){
-	/*
-	 * Implement this
-	 */
+	vector<Node> nodes = findNodes(key);
+
+	// transID::fromAddr::READ::key
+	for (int i = 0; i < 3; i++) {
+		Message message = Message(0, this->memberNode->addr, READ, key);
+		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
+	}
 }
 
 /**
@@ -137,10 +147,14 @@ void MP2Node::clientRead(string key){
  * 				2) Finds the replicas of this key
  * 				3) Sends a message to the replica
  */
-void MP2Node::clientUpdate(string key, string value){
-	/*
-	 * Implement this
-	 */
+void MP2Node::clientUpdate(string key, string value) {
+	vector<Node> nodes = findNodes(key);
+
+	// transID::fromAddr::UPDATE::key::value::ReplicaType
+	for (int i = 0; i < 3; i++) {
+		Message message = Message(0, this->memberNode->addr, UPDATE, key, value, static_cast<ReplicaType>(i));
+		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
+	}
 }
 
 /**
@@ -153,9 +167,13 @@ void MP2Node::clientUpdate(string key, string value){
  * 				3) Sends a message to the replica
  */
 void MP2Node::clientDelete(string key){
-	/*
-	 * Implement this
-	 */
+	vector<Node> nodes = findNodes(key);
+
+	// transID::fromAddr::DELETE::key
+	for (int i = 0; i < 3; i++) {
+		Message message = Message(0, this->memberNode->addr, DELETE, key);
+		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
+	}
 }
 
 /**
@@ -167,10 +185,14 @@ void MP2Node::clientDelete(string key){
  * 			   	2) Return true or false based on success or failure
  */
 bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
-	/*
-	 * Implement this
-	 */
 	// Insert key, value, replicaType into the hash table
+	bool result = ht->create(key, value);
+	if (result) {
+		log->logCreateSuccess(&this->memberNode->addr, false, 0, key, value);
+	} else {
+		log->logCreateFail(&this->memberNode->addr, false, 0, key, value);
+	}
+	return result;
 }
 
 /**
@@ -186,6 +208,13 @@ string MP2Node::readKey(string key) {
 	 * Implement this
 	 */
 	// Read key from local hash table and return value
+	string value = ht->read(key);
+	if (value != "") {
+		log->logReadSuccess(&this->memberNode->addr, false, 0, key, value);
+	} else {
+		log->logReadFail(&this->memberNode->addr, false, 0, key);
+	}
+	return value;
 }
 
 /**
@@ -201,6 +230,13 @@ bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
 	 * Implement this
 	 */
 	// Update key in local hash table and return true or false
+	bool result = ht->update(key, value);
+	if (result) {
+		log->logUpdateSuccess(&this->memberNode->addr, false, 0, key, value);
+	} else {
+		log->logUpdateFail(&this->memberNode->addr, false, 0, key, value);
+	}
+	return result;
 }
 
 /**
@@ -216,6 +252,13 @@ bool MP2Node::deletekey(string key) {
 	 * Implement this
 	 */
 	// Delete the key from the local hash table
+	bool result = ht->deleteKey(key);
+	if (result) {
+		log->logDeleteSuccess(&this->memberNode->addr, false, 0, key);
+	} else {
+		log->logDeleteFail(&this->memberNode->addr, false, 0, key);
+	}
+	return result;
 }
 
 /**
@@ -246,8 +289,40 @@ void MP2Node::checkMessages() {
 		size = memberNode->mp2q.front().size;
 		memberNode->mp2q.pop();
 
-		string message(data, data + size);
+		string value(data, data + size);
 
+		Message message(value);
+
+		switch (message.type) {
+			case CREATE: {
+				bool result = createKeyValue(message.key, message.value, message.replica);
+				Message answer = Message(0, this->memberNode->addr, REPLY, result);
+				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
+				break;
+			}
+			case READ: {
+				string result = readKey(message.key);
+				Message answer = Message(0, this->memberNode->addr, result);
+				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
+				break;
+			}
+			case UPDATE: {
+				bool result = updateKeyValue(message.key, message.value, message.replica);
+				Message answer = Message(0, this->memberNode->addr, REPLY, result);
+				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
+				break;
+			}
+			case DELETE: {
+				bool result = deletekey(message.key);
+				Message answer = Message(0, this->memberNode->addr, REPLY, result);
+				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
+				break;
+			}
+			case REPLY:
+				break;
+			case READREPLY:
+				break;
+		}
 		/*
 		 * Handle the message types here
 		 */
