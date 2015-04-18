@@ -47,6 +47,10 @@ private:
 	EmulNet * emulNet;
 	// Object of Log
 	Log * log;
+	map<int, int> sucessedTransactions;
+	map<int, int> failedTransactions;
+	map<int, Message> outgoingMessages;
+	int currentTransaction;
 
 public:
 	MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log, Address *addressOfMember);
@@ -78,6 +82,8 @@ public:
 
 	// find the addresses of nodes that are responsible for a key
 	vector<Node> findNodes(string key);
+
+	vector<Node> findNodes(size_t pos);
 
 	// server
 	bool createKeyValue(string key, string value, ReplicaType replica);

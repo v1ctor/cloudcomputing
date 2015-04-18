@@ -13,8 +13,9 @@ MP2Node::MP2Node(Member *memberNode, Params *par, EmulNet * emulNet, Log * log, 
 	this->par = par;
 	this->emulNet = emulNet;
 	this->log = log;
-	ht = new HashTable();
+	ht = new HashTable;
 	this->memberNode->addr = *address;
+	this->currentTransaction = 0;
 }
 
 /**
@@ -39,7 +40,6 @@ void MP2Node::updateRing() {
 	 * Implement this. Parts of it are already implemented
 	 */
 	vector<Node> curMemList;
-	bool change = false;
 
 	/*
 	 *  Step 1. Get the current membership list from Membership Protocol / MP1
@@ -57,6 +57,7 @@ void MP2Node::updateRing() {
 	 * Step 3: Run the stabilization protocol IF REQUIRED
 	 */
 	// Run stabilization protocol if the hash table size is greater than zero and if there has been a changed in the ring
+	stabilizationProtocol();
 }
 
 /**
@@ -113,10 +114,13 @@ void MP2Node::clientCreate(string key, string value) {
 	//transID::fromAddr::CREATE::key::value::ReplicaType
 
 	for (int i = 0; i < 3; i++) {
-		Message message = Message(0, this->memberNode->addr, CREATE, key, value, static_cast<ReplicaType>(i));
+		Message message = Message(currentTransaction, this->memberNode->addr, CREATE, key, value, static_cast<ReplicaType>(i));
 		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
 	}
-
+	outgoingMessages.emplace(currentTransaction, Message(currentTransaction, this->memberNode->addr, CREATE, key, value));
+	sucessedTransactions.emplace(currentTransaction, 0);
+	failedTransactions.emplace(currentTransaction, 0);
+	currentTransaction++;
 }
 
 /**
@@ -133,9 +137,13 @@ void MP2Node::clientRead(string key){
 
 	// transID::fromAddr::READ::key
 	for (int i = 0; i < 3; i++) {
-		Message message = Message(0, this->memberNode->addr, READ, key);
+		Message message = Message(currentTransaction, this->memberNode->addr, READ, key);
 		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
 	}
+	outgoingMessages.emplace(currentTransaction, Message(currentTransaction, this->memberNode->addr, READ, key));
+	sucessedTransactions.emplace(currentTransaction, 0);
+	failedTransactions.emplace(currentTransaction, 0);
+	currentTransaction++;
 }
 
 /**
@@ -151,10 +159,15 @@ void MP2Node::clientUpdate(string key, string value) {
 	vector<Node> nodes = findNodes(key);
 
 	// transID::fromAddr::UPDATE::key::value::ReplicaType
+
 	for (int i = 0; i < 3; i++) {
-		Message message = Message(0, this->memberNode->addr, UPDATE, key, value, static_cast<ReplicaType>(i));
+		Message message = Message(currentTransaction, this->memberNode->addr, UPDATE, key, value, static_cast<ReplicaType>(i));
 		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
 	}
+	outgoingMessages.emplace(currentTransaction, Message(currentTransaction, this->memberNode->addr, UPDATE, key, value));
+	sucessedTransactions.emplace(currentTransaction, 0);
+	failedTransactions.emplace(currentTransaction, 0);
+	currentTransaction++;
 }
 
 /**
@@ -170,10 +183,15 @@ void MP2Node::clientDelete(string key){
 	vector<Node> nodes = findNodes(key);
 
 	// transID::fromAddr::DELETE::key
+
 	for (int i = 0; i < 3; i++) {
-		Message message = Message(0, this->memberNode->addr, DELETE, key);
+		Message message = Message(currentTransaction, this->memberNode->addr, DELETE, key);
 		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
 	}
+	outgoingMessages.emplace(currentTransaction, Message(currentTransaction, this->memberNode->addr, DELETE, key));
+	sucessedTransactions.emplace(currentTransaction, 0);
+	failedTransactions.emplace(currentTransaction, 0);
+	currentTransaction++;
 }
 
 /**
@@ -186,13 +204,7 @@ void MP2Node::clientDelete(string key){
  */
 bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
 	// Insert key, value, replicaType into the hash table
-	bool result = ht->create(key, value);
-	if (result) {
-		log->logCreateSuccess(&this->memberNode->addr, false, 0, key, value);
-	} else {
-		log->logCreateFail(&this->memberNode->addr, false, 0, key, value);
-	}
-	return result;
+	return ht->create(key, value);
 }
 
 /**
@@ -208,13 +220,7 @@ string MP2Node::readKey(string key) {
 	 * Implement this
 	 */
 	// Read key from local hash table and return value
-	string value = ht->read(key);
-	if (value != "") {
-		log->logReadSuccess(&this->memberNode->addr, false, 0, key, value);
-	} else {
-		log->logReadFail(&this->memberNode->addr, false, 0, key);
-	}
-	return value;
+	return  ht->read(key);
 }
 
 /**
@@ -226,17 +232,8 @@ string MP2Node::readKey(string key) {
  * 				2) Return true or false based on success or failure
  */
 bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
-	/*
-	 * Implement this
-	 */
 	// Update key in local hash table and return true or false
-	bool result = ht->update(key, value);
-	if (result) {
-		log->logUpdateSuccess(&this->memberNode->addr, false, 0, key, value);
-	} else {
-		log->logUpdateFail(&this->memberNode->addr, false, 0, key, value);
-	}
-	return result;
+	return  ht->update(key, value);
 }
 
 /**
@@ -248,17 +245,8 @@ bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
  * 				2) Return true or false based on success or failure
  */
 bool MP2Node::deletekey(string key) {
-	/*
-	 * Implement this
-	 */
 	// Delete the key from the local hash table
-	bool result = ht->deleteKey(key);
-	if (result) {
-		log->logDeleteSuccess(&this->memberNode->addr, false, 0, key);
-	} else {
-		log->logDeleteFail(&this->memberNode->addr, false, 0, key);
-	}
-	return result;
+	return  ht->deleteKey(key);
 }
 
 /**
@@ -296,37 +284,113 @@ void MP2Node::checkMessages() {
 		switch (message.type) {
 			case CREATE: {
 				bool result = createKeyValue(message.key, message.value, message.replica);
-				Message answer = Message(0, this->memberNode->addr, REPLY, result);
+				if (result) {
+					log->logCreateSuccess(&this->memberNode->addr, false, message.transID, message.key, message.value);
+				} else {
+					log->logCreateFail(&this->memberNode->addr, false, message.transID, message.key, message.value);
+				}
+				Message answer = Message(message.transID, this->memberNode->addr, REPLY, result);
 				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
 				break;
 			}
 			case READ: {
 				string result = readKey(message.key);
-				Message answer = Message(0, this->memberNode->addr, result);
+				if (value != "") {
+					log->logReadSuccess(&this->memberNode->addr, false, message.transID, message.key, message.value);
+				} else {
+					log->logReadFail(&this->memberNode->addr, false, message.transID, message.key);
+				}
+				Message answer = Message(message.transID, this->memberNode->addr, result);
 				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
 				break;
 			}
 			case UPDATE: {
 				bool result = updateKeyValue(message.key, message.value, message.replica);
-				Message answer = Message(0, this->memberNode->addr, REPLY, result);
+				if (result) {
+					log->logUpdateSuccess(&this->memberNode->addr, false, message.transID, message.key, message.value);
+				} else {
+					log->logUpdateFail(&this->memberNode->addr, false, message.transID, message.key, message.value);
+				}
+				Message answer = Message(message.transID, this->memberNode->addr, REPLY, result);
 				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
 				break;
 			}
 			case DELETE: {
 				bool result = deletekey(message.key);
-				Message answer = Message(0, this->memberNode->addr, REPLY, result);
+				if (result) {
+					log->logDeleteSuccess(&this->memberNode->addr, false, message.transID, message.key);
+				} else {
+					log->logDeleteFail(&this->memberNode->addr, false, message.transID, message.key);
+				}
+				Message answer = Message(message.transID, this->memberNode->addr, REPLY, result);
 				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
 				break;
 			}
-			case REPLY:
+			case REPLY: {
+				if (message.success) {
+					sucessedTransactions.emplace(message.transID, sucessedTransactions.at(message.transID) + 1);
+				} else {
+					failedTransactions.emplace(message.transID, failedTransactions.at(message.transID) + 1);
+				}
+				Message outMessage = outgoingMessages.find(message.transID)->second;
+				if (sucessedTransactions.at(message.transID) >= 2) {
+					switch (outMessage.type) {
+						case CREATE:
+							log->logCreateSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key,
+												  outMessage.value);
+							break;
+						case UPDATE:
+							log->logUpdateSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key,
+												  outMessage.value);
+							break;
+						case DELETE:
+							log->logDeleteSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key);
+							break;
+						case READ:
+							break;
+						case REPLY:
+							break;
+						case READREPLY:
+							break;
+					}
+				} else if (failedTransactions.at(message.transID) >= 2) {
+					switch (outMessage.type) {
+						case CREATE:
+							log->logCreateFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key,
+											   outMessage.value);
+							break;
+						case UPDATE:
+							log->logUpdateFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key,
+											   outMessage.value);
+							break;
+						case DELETE:
+							log->logDeleteFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key);
+							break;
+						case READ:
+							break;
+						case REPLY:
+							break;
+						case READREPLY:
+							break;
+					}
+				}
 				break;
-			case READREPLY:
+			}
+			case READREPLY: {
+				if (message.value != "") {
+					sucessedTransactions.emplace(message.transID, sucessedTransactions.at(message.transID) + 1);
+				} else {
+					failedTransactions.emplace(message.transID, failedTransactions.at(message.transID) + 1);
+				}
+				Message outMessage = outgoingMessages.find(message.transID)->second;
+				if (sucessedTransactions.at(message.transID) >= 2) {
+					log->logReadSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key, outMessage.value);
+				} else if (failedTransactions.at(message.transID) >= 2) {
+					log->logReadFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key);
+				}
 				break;
+			}
 		}
-		/*
-		 * Handle the message types here
-		 */
-
 	}
 
 	/*
@@ -335,14 +399,18 @@ void MP2Node::checkMessages() {
 	 */
 }
 
+vector<Node> MP2Node::findNodes(string key) {
+	size_t pos = hashFunction(key);
+	return findNodes(pos);
+}
+
 /**
  * FUNCTION NAME: findNodes
  *
  * DESCRIPTION: Find the replicas of the given keyfunction
  * 				This function is responsible for finding the replicas of a key
  */
-vector<Node> MP2Node::findNodes(string key) {
-	size_t pos = hashFunction(key);
+vector<Node> MP2Node::findNodes(size_t pos) {
 	vector<Node> addr_vec;
 	if (ring.size() >= 3) {
 		// if pos <= min || pos > max, the leader is the min
