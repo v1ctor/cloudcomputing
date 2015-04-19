@@ -46,6 +46,7 @@ void MP2Node::updateRing() {
 	 */
 	curMemList = getMembershipList();
 
+	curMemList.push_back(Node(this->memberNode->addr));
 	/*
 	 * Step 2: Construct the ring
 	 */
@@ -328,12 +329,12 @@ void MP2Node::checkMessages() {
 			}
 			case REPLY: {
 				if (message.success) {
-					sucessedTransactions.emplace(message.transID, sucessedTransactions.at(message.transID) + 1);
+					sucessedTransactions.at(message.transID) += 1;
 				} else {
-					failedTransactions.emplace(message.transID, failedTransactions.at(message.transID) + 1);
+					failedTransactions.at(message.transID) += 1;
 				}
 				Message outMessage = outgoingMessages.find(message.transID)->second;
-				if (sucessedTransactions.at(message.transID) >= 2) {
+				if (message.success && sucessedTransactions.at(message.transID) == 2) {
 					switch (outMessage.type) {
 						case CREATE:
 							log->logCreateSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key,
@@ -353,7 +354,7 @@ void MP2Node::checkMessages() {
 						case READREPLY:
 							break;
 					}
-				} else if (failedTransactions.at(message.transID) >= 2) {
+				} else if (!message.success && failedTransactions.at(message.transID) == 2) {
 					switch (outMessage.type) {
 						case CREATE:
 							log->logCreateFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key,
@@ -378,14 +379,14 @@ void MP2Node::checkMessages() {
 			}
 			case READREPLY: {
 				if (message.value != "") {
-					sucessedTransactions.emplace(message.transID, sucessedTransactions.at(message.transID) + 1);
+					sucessedTransactions.at(message.transID) += 1;
 				} else {
-					failedTransactions.emplace(message.transID, failedTransactions.at(message.transID) + 1);
+					failedTransactions.at(message.transID) += 1;
 				}
 				Message outMessage = outgoingMessages.find(message.transID)->second;
-				if (sucessedTransactions.at(message.transID) >= 2) {
+				if (message.success && sucessedTransactions.at(message.transID) == 2) {
 					log->logReadSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key, outMessage.value);
-				} else if (failedTransactions.at(message.transID) >= 2) {
+				} else if (!message.success && failedTransactions.at(message.transID) == 2) {
 					log->logReadFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key);
 				}
 				break;
@@ -411,6 +412,10 @@ vector<Node> MP2Node::findNodes(string key) {
  * 				This function is responsible for finding the replicas of a key
  */
 vector<Node> MP2Node::findNodes(size_t pos) {
+//	for (auto a : ring) {
+//		std::cout << a.nodeAddress.getAddress() << " ";
+//	}
+//	std::cout << '\n';
 	vector<Node> addr_vec;
 	if (ring.size() >= 3) {
 		// if pos <= min || pos > max, the leader is the min
