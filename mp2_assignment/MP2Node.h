@@ -84,6 +84,17 @@ public:
 	vector<Node> findNodes(string key);
 
 	vector<Node> findNodes(size_t pos);
+	vector<Node> findOldNodes(string key);
+	vector<Node> findOldNodes(size_t pos);
+	vector<Node> findSuccessors();
+	vector<Node> findPredecessors();
+
+	Node findPrimary(string key);
+
+	vector<Node> minus(vector<Node> from, vector<Node> to);
+	vector<Node> filterOnRing(vector<Node> nodes);
+
+	bool onRing(Node node);
 
 	// server
 	bool createKeyValue(string key, string value, ReplicaType replica);

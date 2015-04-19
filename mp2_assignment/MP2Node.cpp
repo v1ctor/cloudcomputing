@@ -115,8 +115,10 @@ void MP2Node::clientCreate(string key, string value) {
 	//transID::fromAddr::CREATE::key::value::ReplicaType
 
 	for (int i = 0; i < 3; i++) {
-		Message message = Message(currentTransaction, this->memberNode->addr, CREATE, key, value, static_cast<ReplicaType>(i));
+		Message message = Message(currentTransaction, this->memberNode->addr, CREATE, key, value,
+								  static_cast<ReplicaType>(i));
 		this->emulNet->ENsend(&this->memberNode->addr, &nodes[i].nodeAddress, message.toString());
+
 	}
 	outgoingMessages.emplace(currentTransaction, Message(currentTransaction, this->memberNode->addr, CREATE, key, value));
 	sucessedTransactions.emplace(currentTransaction, 0);
@@ -262,6 +264,9 @@ void MP2Node::checkMessages() {
 	/*
 	 * Implement this. Parts of it are already implemented
 	 */
+#ifdef DEBUGLOG2
+	std::cout << "Check messages on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 	char * data;
 	int size;
 
@@ -284,50 +289,90 @@ void MP2Node::checkMessages() {
 
 		switch (message.type) {
 			case CREATE: {
+#ifdef DEBUGLOG2
+				std::cout << "Received create on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				bool result = createKeyValue(message.key, message.value, message.replica);
-				if (result) {
-					log->logCreateSuccess(&this->memberNode->addr, false, message.transID, message.key, message.value);
-				} else {
-					log->logCreateFail(&this->memberNode->addr, false, message.transID, message.key, message.value);
+				if (message.transID != -1) {
+					if (result) {
+						log->logCreateSuccess(&this->memberNode->addr, false, message.transID, message.key,
+											  message.value);
+					} else {
+						log->logCreateFail(&this->memberNode->addr, false, message.transID, message.key, message.value);
+					}
 				}
 				Message answer = Message(message.transID, this->memberNode->addr, REPLY, result);
 				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
+#ifdef DEBUGLOG2
+				std::cout << "Finished create on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				break;
 			}
 			case READ: {
+#ifdef DEBUGLOG2
+				std::cout << "Received read on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				string result = readKey(message.key);
-				if (result.length() != 0) {
-					log->logReadSuccess(&this->memberNode->addr, false, message.transID, message.key, result);
-				} else {
-					log->logReadFail(&this->memberNode->addr, false, message.transID, message.key);
+				if (message.transID != -1) {
+					if (result.length() != 0) {
+						log->logReadSuccess(&this->memberNode->addr, false, message.transID, message.key, result);
+					} else {
+						log->logReadFail(&this->memberNode->addr, false, message.transID, message.key);
+					}
 				}
 				Message answer = Message(message.transID, this->memberNode->addr, result);
 				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
+#ifdef DEBUGLOG2
+				std::cout << "Finished read on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				break;
 			}
 			case UPDATE: {
+#ifdef DEBUGLOG2
+				std::cout << "Received update on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				bool result = updateKeyValue(message.key, message.value, message.replica);
-				if (result) {
-					log->logUpdateSuccess(&this->memberNode->addr, false, message.transID, message.key, message.value);
-				} else {
-					log->logUpdateFail(&this->memberNode->addr, false, message.transID, message.key, message.value);
+				if (message.transID != -1) {
+					if (result) {
+						log->logUpdateSuccess(&this->memberNode->addr, false, message.transID, message.key,
+											  message.value);
+					} else {
+						log->logUpdateFail(&this->memberNode->addr, false, message.transID, message.key, message.value);
+					}
 				}
 				Message answer = Message(message.transID, this->memberNode->addr, REPLY, result);
 				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
+#ifdef DEBUGLOG2
+				std::cout << "Finished update on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				break;
 			}
 			case DELETE: {
+#ifdef DEBUGLOG2
+				std::cout << "Received delete on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				bool result = deletekey(message.key);
-				if (result) {
-					log->logDeleteSuccess(&this->memberNode->addr, false, message.transID, message.key);
-				} else {
-					log->logDeleteFail(&this->memberNode->addr, false, message.transID, message.key);
+				if (message.transID != -1) {
+					if (result) {
+						log->logDeleteSuccess(&this->memberNode->addr, false, message.transID, message.key);
+					} else {
+						log->logDeleteFail(&this->memberNode->addr, false, message.transID, message.key);
+					}
 				}
 				Message answer = Message(message.transID, this->memberNode->addr, REPLY, result);
 				this->emulNet->ENsend(&this->memberNode->addr, &message.fromAddr, answer.toString());
+#ifdef DEBUGLOG2
+				std::cout << "Finished delete on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				break;
 			}
 			case REPLY: {
+#ifdef DEBUGLOG2
+				std::cout << "Received reply on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
+				if (message.transID == -1) {
+					break;
+				}
 				if (message.success) {
 					sucessedTransactions.at(message.transID) += 1;
 				} else {
@@ -375,25 +420,39 @@ void MP2Node::checkMessages() {
 							break;
 					}
 				}
+#ifdef DEBUGLOG2
+				std::cout << "Finished reply on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				break;
 			}
 			case READREPLY: {
+#ifdef DEBUGLOG2
+				std::cout << "Received readreply on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
+				if (message.transID == -1) {
+					break;
+				}
 				if (message.value.length() != 0) {
 					sucessedTransactions.at(message.transID) += 1;
 				} else {
 					failedTransactions.at(message.transID) += 1;
 				}
 				Message outMessage = outgoingMessages.find(message.transID)->second;
-				if (message.success && sucessedTransactions.at(message.transID) == 2) {
+				if (message.value.length() != 0 && sucessedTransactions.at(message.transID) == 2) {
 					log->logReadSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key, outMessage.value);
-				} else if (!message.success && failedTransactions.at(message.transID) == 2) {
+				} else if (message.value.length() == 0 && failedTransactions.at(message.transID) == 2) {
 					log->logReadFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key);
 				}
+#ifdef DEBUGLOG2
+				std::cout << "Finished readreaply on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 				break;
 			}
 		}
 	}
-
+#ifdef DEBUGLOG2
+	std::cout << "Finish checking messages on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
 	/*
 	 * This function should also ensure all READ and UPDATE operation
 	 * get QUORUM replies
@@ -412,10 +471,6 @@ vector<Node> MP2Node::findNodes(string key) {
  * 				This function is responsible for finding the replicas of a key
  */
 vector<Node> MP2Node::findNodes(size_t pos) {
-//	for (auto a : ring) {
-//		std::cout << a.nodeAddress.getAddress() << " ";
-//	}
-//	std::cout << '\n';
 	vector<Node> addr_vec;
 	if (ring.size() >= 3) {
 		// if pos <= min || pos > max, the leader is the min
@@ -437,7 +492,69 @@ vector<Node> MP2Node::findNodes(size_t pos) {
 			}
 		}
 	}
+#ifdef DEBUGLOG2
+	std::cout << "Nodes ";
+	for (Node node : addr_vec) {
+		std::cout << node.nodeAddress.getAddress() <<  " with hash " << node.nodeHashCode << " ";
+	}
+	std::cout << '\n';
+#endif
 	return addr_vec;
+
+}
+
+vector<Node> MP2Node::findOldNodes(string key) {
+	size_t key_hash = hashFunction(key);
+	return findOldNodes(key_hash);
+}
+
+vector<Node> MP2Node::findOldNodes(size_t pos) {
+	vector<Node> result;
+	for (Node node : haveReplicasOf) {
+		if (node.nodeHashCode >= pos) {
+			result.emplace_back(node);
+		}
+	}
+	result.emplace_back(Node(this->memberNode->addr));
+	for (int i = 1; i <= 3 - result.size(); i++) {
+		result.emplace_back(hasMyReplicas.at(i));
+	}
+#ifdef DEBUGLOG2
+	std::cout << "Stabilaze old nodes ";
+	for (Node node : result) {
+		std::cout << node.nodeAddress.getAddress() <<  " with hash " << node.nodeHashCode << " ";
+	}
+	std::cout << '\n';
+#endif
+	return  result;
+}
+
+vector<Node> MP2Node::minus(vector<Node> from, vector<Node> to) {
+	vector<Node> result;
+	for (Node node : from) {
+		bool contains = false;
+		for (Node toNode : to) {
+			if (toNode.nodeHashCode == node.nodeHashCode) {
+				contains = true;
+				break;
+			}
+		}
+		if (!contains) {
+			result.emplace_back(node);
+		}
+	}
+#ifdef DEBUGLOG2
+	std::cout << "Minus ";
+	for (Node node : result) {
+		std::cout << node.nodeAddress.getAddress() <<  " with hash " << node.nodeHashCode << " ";
+	}
+	std::cout << '\n';
+#endif
+	return result;
+}
+
+vector<Node> MP2Node::filterOnRing(vector<Node> nodes) {
+	return minus(nodes, minus(nodes, ring));
 }
 
 /**
@@ -476,4 +593,121 @@ void MP2Node::stabilizationProtocol() {
 	/*
 	 * Implement this
 	 */
+	if (hasMyReplicas.size() == 0 && haveReplicasOf.size() == 0) {
+#ifdef DEBUGLOG2
+		std::cout << "Init sucessors and predecessors for node " << this->memberNode->addr.getAddress() << '\n';
+#endif
+		hasMyReplicas = findNodes(hashFunction(this->memberNode->addr.addr));
+		haveReplicasOf = findPredecessors();
+#ifdef DEBUGLOG2
+		std::cout << "Sucessors and predecessors for node " << this->memberNode->addr.getAddress() << " found!" << '\n';
+#endif
+		return;
+	}
+#ifdef DEBUGLOG2
+	std::cout << "Start stabiliztion on node " << this->memberNode->addr.getAddress() << '\n';
+#endif
+	for (auto& entry: ht->hashTable) {
+		vector<Node> replicas = findNodes(entry.first);
+		vector<Node> currentNodes = findOldNodes(entry.first);
+
+		vector<Node> addNodes = minus(replicas, currentNodes);
+		vector<Node> removeNodes = minus(currentNodes, replicas);
+
+		for (Node node : removeNodes) {
+#ifdef DEBUGLOG2
+			std::cout << "Stabilaze create key " << entry.first << " on node " << node.nodeAddress.getAddress() <<  " with hash "
+				<< node.nodeHashCode << "\n";
+#endif
+			Message message = Message(-1, this->memberNode->addr, DELETE, entry.first);
+			this->emulNet->ENsend(&this->memberNode->addr, &node.nodeAddress, message.toString());
+		}
+
+		for (Node node : addNodes) {
+#ifdef DEBUGLOG2
+			std::cout << "Stabilaze remove key " << entry.first << " on node " << node.nodeAddress.getAddress() <<  " with hash "
+				<< node.nodeHashCode << "\n";
+#endif
+			Message message = Message(-1, this->memberNode->addr, CREATE, entry.first, entry.second, PRIMARY);
+			this->emulNet->ENsend(&this->memberNode->addr, &node.nodeAddress, message.toString());
+		}
+	}
+
+	hasMyReplicas = findNodes(hashFunction(this->memberNode->addr.addr));
+	haveReplicasOf = findPredecessors();
+#ifdef DEBUGLOG2
+	std::cout << "Stabiliztion on node " << this->memberNode->addr.getAddress() <<  " finished!" << '\n';
+#endif
+}
+
+bool MP2Node::onRing(Node node) {
+	for (Node ringNode : ring) {
+		if (ringNode.nodeHashCode == node.nodeHashCode) {
+			return true;
+		}
+	}
+	return false;
+}
+
+Node MP2Node::findPrimary(string key) {
+	return findNodes(key).front();
+}
+
+vector<Node> MP2Node::findSuccessors() {
+	vector<Node> addr_vec;
+	size_t pos = hashFunction(this->memberNode->addr.addr);
+	if (ring.size() >= 3) {
+		// if pos <= min || pos > max, the leader is the min
+		if (pos == ring.at(ring.size()-1).getHashCode()) {
+			addr_vec.emplace_back(ring.at(0));
+			addr_vec.emplace_back(ring.at(1));
+		}
+		else {
+			// go through the ring until pos <= node
+			for (int i=1; i<ring.size(); i++){
+				Node addr = ring.at(i);
+				if (pos < addr.getHashCode()) {
+					addr_vec.emplace_back(addr);
+					addr_vec.emplace_back(ring.at((i+1)%ring.size()));
+					break;
+				}
+			}
+		}
+	}
+	return addr_vec;
+}
+
+vector<Node> MP2Node::findPredecessors() {
+	vector<Node> addr_vec;
+	size_t pos = hashFunction(this->memberNode->addr.addr);
+#ifdef DEBUGLOG2
+	std::cout << "Search predecessors for " << this->memberNode->addr.getAddress() <<  " with hash " << pos << '\n';
+#endif
+	if (ring.size() >= 3) {
+		// if pos <= min || pos > max, the leader is the min
+		if (pos == ring.at(0).getHashCode()) {
+			addr_vec.emplace_back(ring.at(ring.size()-1));
+			addr_vec.emplace_back(ring.at(ring.size()-2));
+		} else if (pos == ring.at(1).getHashCode()) {
+			addr_vec.emplace_back(ring.at(0));
+			addr_vec.emplace_back(ring.at(ring.size()-1));
+		} else {
+			// go through the ring until pos <= node
+			for (int i = ring.size() - 1; i > 0; i--){
+				Node addr = ring.at(i);
+				if (pos > addr.getHashCode()) {
+					addr_vec.emplace_back(addr);
+					addr_vec.emplace_back(ring.at((i - 1) % ring.size()));
+					break;
+				}
+			}
+		}
+	}
+#ifdef DEBUGLOG2
+	for (Node node : addr_vec) {
+		std::cout << node.nodeAddress.getAddress() <<  " with hash " << node.nodeHashCode << " ";
+	}
+	std::cout << '\n';
+#endif
+	return addr_vec;
 }
