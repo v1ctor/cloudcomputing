@@ -296,8 +296,8 @@ void MP2Node::checkMessages() {
 			}
 			case READ: {
 				string result = readKey(message.key);
-				if (value != "") {
-					log->logReadSuccess(&this->memberNode->addr, false, message.transID, message.key, message.value);
+				if (result.length() != 0) {
+					log->logReadSuccess(&this->memberNode->addr, false, message.transID, message.key, result);
 				} else {
 					log->logReadFail(&this->memberNode->addr, false, message.transID, message.key);
 				}
@@ -378,7 +378,7 @@ void MP2Node::checkMessages() {
 				break;
 			}
 			case READREPLY: {
-				if (message.value != "") {
+				if (message.value.length() != 0) {
 					sucessedTransactions.at(message.transID) += 1;
 				} else {
 					failedTransactions.at(message.transID) += 1;
