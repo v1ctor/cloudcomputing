@@ -439,7 +439,7 @@ void MP2Node::checkMessages() {
 				}
 				Message outMessage = outgoingMessages.find(message.transID)->second;
 				if (message.value.length() != 0 && sucessedTransactions.at(message.transID) == 2) {
-					log->logReadSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key, outMessage.value);
+					log->logReadSuccess(&this->memberNode->addr, true, outMessage.transID, outMessage.key, message.value);
 				} else if (message.value.length() == 0 && failedTransactions.at(message.transID) == 2) {
 					log->logReadFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key);
 				}
