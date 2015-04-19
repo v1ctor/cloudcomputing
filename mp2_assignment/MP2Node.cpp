@@ -457,6 +457,31 @@ void MP2Node::checkMessages() {
 	 * This function should also ensure all READ and UPDATE operation
 	 * get QUORUM replies
 	 */
+	for (auto& trans : sucessedTransactions) {
+		if (trans.second == 1 && failedTransactions.at(trans.first) < 2) {
+			Message outMessage = outgoingMessages.find(trans.first)->second;
+			switch (outMessage.type) {
+				case CREATE:
+					log->logCreateFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key, outMessage.value);
+					break;
+				case UPDATE:
+					log->logUpdateFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key, outMessage.value);
+					break;
+				case DELETE:
+					log->logDeleteFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key);
+					break;
+				case READ:
+					log->logReadFail(&this->memberNode->addr, true, outMessage.transID, outMessage.key);
+					break;
+				case REPLY:
+					break;
+				case READREPLY:
+					break;
+			}
+			failedTransactions.erase(trans.first);
+			sucessedTransactions.erase(trans.first);
+		}
+	}
 }
 
 vector<Node> MP2Node::findNodes(string key) {
