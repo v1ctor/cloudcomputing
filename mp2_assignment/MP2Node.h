@@ -62,7 +62,6 @@ public:
 	void updateRing();
 	vector<Node> getMembershipList();
 	size_t hashFunction(string key);
-	void findNeighbors();
 
 	// client side CRUD APIs
 	void clientCreate(string key, string value);
@@ -77,8 +76,6 @@ public:
 	// handle messages from receiving queue
 	void checkMessages();
 
-	// coordinator dispatches messages to corresponding nodes
-	void dispatchMessages(Message message);
 
 	// find the addresses of nodes that are responsible for a key
 	vector<Node> findNodes(string key);
@@ -86,15 +83,9 @@ public:
 	vector<Node> findNodes(size_t pos);
 	vector<Node> findOldNodes(string key);
 	vector<Node> findOldNodes(size_t pos);
-	vector<Node> findSuccessors();
 	vector<Node> findPredecessors();
-
-	Node findPrimary(string key);
-
+	
 	vector<Node> minus(vector<Node> from, vector<Node> to);
-	vector<Node> filterOnRing(vector<Node> nodes);
-
-	bool onRing(Node node);
 
 	// server
 	bool createKeyValue(string key, string value, ReplicaType replica);

@@ -578,10 +578,6 @@ vector<Node> MP2Node::minus(vector<Node> from, vector<Node> to) {
 	return result;
 }
 
-vector<Node> MP2Node::filterOnRing(vector<Node> nodes) {
-	return minus(nodes, minus(nodes, ring));
-}
-
 /**
  * FUNCTION NAME: recvLoop
  *
@@ -663,43 +659,6 @@ void MP2Node::stabilizationProtocol() {
 #ifdef DEBUGLOG2
 	std::cout << "Stabiliztion on node " << this->memberNode->addr.getAddress() <<  " finished!" << '\n';
 #endif
-}
-
-bool MP2Node::onRing(Node node) {
-	for (Node ringNode : ring) {
-		if (ringNode.nodeHashCode == node.nodeHashCode) {
-			return true;
-		}
-	}
-	return false;
-}
-
-Node MP2Node::findPrimary(string key) {
-	return findNodes(key).front();
-}
-
-vector<Node> MP2Node::findSuccessors() {
-	vector<Node> addr_vec;
-	size_t pos = hashFunction(this->memberNode->addr.addr);
-	if (ring.size() >= 3) {
-		// if pos <= min || pos > max, the leader is the min
-		if (pos == ring.at(ring.size()-1).getHashCode()) {
-			addr_vec.emplace_back(ring.at(0));
-			addr_vec.emplace_back(ring.at(1));
-		}
-		else {
-			// go through the ring until pos <= node
-			for (int i=1; i<ring.size(); i++){
-				Node addr = ring.at(i);
-				if (pos < addr.getHashCode()) {
-					addr_vec.emplace_back(addr);
-					addr_vec.emplace_back(ring.at((i+1)%ring.size()));
-					break;
-				}
-			}
-		}
-	}
-	return addr_vec;
 }
 
 vector<Node> MP2Node::findPredecessors() {
